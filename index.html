@@ -33,15 +33,144 @@
   <body>
     <div id="app"></div>
      <script>
-   const app = document.getElementById("app"); 
-     app.innerHTML = `
-   <main class="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-     <div class="bg-slate-900 p-6 rounded-2xl text-center space-y-3">
-        <h1 class="text-xl font-bold">맞춤 단어 사전</h1>
-        <p class="text-slate-300">✅ HTML 단독 구조 정상 작동</p>
-      </div>
+       <script>
+  const app = document.getElementById("app");
+
+  // 1) UI 렌더
+  app.innerHTML = `
+    <main class="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+      <section class="w-full max-w-2xl space-y-5">
+        <header class="space-y-2">
+          <h1 class="text-2xl font-bold">맞춤 단어 사전</h1>
+          <p class="text-slate-300 text-sm">단어를 입력하면 뜻/예문과 이미지(임시)를 보여줘요.</p>
+        </header>
+
+        <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+          <label class="block text-sm text-slate-300">단어 입력</label>
+          <div class="flex gap-2">
+            <input id="word" class="flex-1 rounded-xl bg-slate-950 border border-slate-800 p-3 outline-none"
+                   placeholder="예: photosynthesis" />
+            <button id="btn" class="rounded-xl bg-indigo-600 hover:bg-indigo-500 px-4 font-semibold">
+              생성
+            </button>
+          </div>
+
+          <div class="text-xs text-slate-400">
+            팁: 엔터(Enter)로도 실행돼요.
+          </div>
+        </div>
+
+        <div id="result" class="grid md:grid-cols-2 gap-4"></div>
+
+        <footer class="text-xs text-slate-500">
+          ※ 현재는 “안전 모드(키 없이)”로 예시 뜻/예문 + 임시 이미지(SVG)를 생성합니다.
+        </footer>
+      </section>
     </main>
   `;
+
+  const $ = (id) => document.getElementById(id);
+
+  // 2) 임시 “뜻/예문” 생성 (키 없이 동작)
+  function mockExplain(word) {
+    const w = word.toLowerCase();
+    const meaning = {
+      photosynthesis: "식물이 빛 에너지를 이용해 이산화탄소와 물로부터 포도당을 만들고 산소를 내놓는 과정.",
+      algorithm: "문제를 해결하기 위한 단계적 절차 또는 규칙의 집합.",
+      democracy: "국민이 주권을 갖고 대표를 통해 정치에 참여하는 제도."
+    }[w] || `“${word}”는(은) 맥락에 따라 의미가 달라질 수 있는 단어예요. (예시 출력)`;
+
+    const examples = [
+      `I looked up the meaning of "${word}" in a dictionary.`,
+      `Our teacher explained "${word}" with a real-life example.`,
+      `Try using "${word}" in a sentence to remember it better.`
+    ];
+
+    // 한글 예문도 하나 섞기
+    const ko = [
+      `"${word}"의 뜻을 찾아보고 예문을 만들어 봤다.`,
+      `"${word}"를 실제 상황에 연결해 이해해 봤다.`
+    ];
+
+    return {
+      meaning,
+      examples: [examples[0], examples[1], ko[0]]
+    };
+  }
+
+  // 3) 임시 이미지(SVG) 생성 (키 없이 동작)
+  function makePlaceholderSVG(text) {
+    const safe = String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">
+        <defs>
+          <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stop-color="#111827"/>
+            <stop offset="1" stop-color="#0b1020"/>
+          </linearGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#g)"/>
+        <circle cx="520" cy="80" r="60" fill="rgba(99,102,241,0.35)"/>
+        <circle cx="120" cy="260" r="90" fill="rgba(56,189,248,0.25)"/>
+        <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle"
+              font-family="Noto Sans KR, sans-serif" font-size="34" fill="rgba(255,255,255,0.92)">
+          ${safe}
+        </text>
+        <text x="50%" y="67%" dominant-baseline="middle" text-anchor="middle"
+              font-family="Noto Sans KR, sans-serif" font-size="16" fill="rgba(255,255,255,0.65)">
+          (image placeholder)
+        </text>
+      </svg>
+    `;
+    return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+  }
+
+  function renderCards(word, data) {
+    const imgSrc = makePlaceholderSVG(word);
+
+    $("result").innerHTML = `
+      <article class="animate-card-entrance bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <h2 class="text-lg font-semibold">뜻</h2>
+        <p class="text-slate-200 leading-relaxed">${data.meaning}</p>
+      </article>
+
+      <article class="animate-card-entrance bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <h2 class="text-lg font-semibold">예문</h2>
+        <ul class="list-disc pl-5 space-y-2 text-slate-200">
+          ${data.examples.map(e => `<li>${e}</li>`).join("")}
+        </ul>
+      </article>
+
+      <article class="animate-card-entrance md:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="text-lg font-semibold">이미지</h2>
+          <span class="text-xs text-slate-400">현재: 임시 이미지(SVG)</span>
+        </div>
+        <img class="w-full rounded-xl border border-slate-800" src="${imgSrc}" alt="${word} image"/>
+      </article>
+    `;
+  }
+
+  function run() {
+    const word = $("word").value.trim();
+    if (!word) {
+      $("result").innerHTML = `
+        <div class="animate-card-entrance md:col-span-2 bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 text-rose-200">
+          단어를 입력해줘!
+        </div>
+      `;
+      return;
+    }
+
+    const data = mockExplain(word);
+    renderCards(word, data);
+  }
+
+  $("btn").addEventListener("click", run);
+  $("word").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") run();
+  });
+</script>
 
  </script>
   </body>
