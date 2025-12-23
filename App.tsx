@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, GraduationCap, Loader2, BookMarked, ArrowRight, Palette, ArrowUp, RotateCcw, Settings, Zap, BrainCircuit } from 'lucide-react';
 import { StudentLevel, WordData, SearchHistoryItem, ThemeColor } from './types';
-import { fetchWordDefinition, generateImage } from './services/geminiService';
+import { fetchWordDefinition } from './services/geminiService';
 import { LevelBadge } from './components/LevelBadge';
 import { WordCard } from './components/WordCard';
 
@@ -45,46 +45,26 @@ const App: React.FC = () => {
 
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  const executeSearch = async (word: string) => {
+  const executeSearch = async (word: string, customLevel?: StudentLevel, customModel?: string) => {
+    if (!word.trim()) return;
+    
+    // Use custom params or fall back to state
+    const targetLevel = customLevel || selectedLevel;
+    const targetModel = customModel || selectedModel;
+
     setLoading(true);
     setError(null);
-    setResult(null);
 
     try {
-      const data = await fetchWordDefinition(word, selectedLevel, selectedModel);
+      const data = await fetchWordDefinition(word, targetLevel, targetModel);
       setResult(data);
       setLoading(false);
       
-      const newItem: SearchHistoryItem = { word: data.word, level: selectedLevel, timestamp: Date.now() };
+      const newItem: SearchHistoryItem = { word: data.word, level: targetLevel, timestamp: Date.now() };
       const newHistory = [newItem, ...history.filter(h => h.word !== data.word)].slice(0, 50);
       setHistory(newHistory);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
-
-      if (data.meanings && data.meanings.length > 0) {
-        data.meanings.forEach((meaning, index) => {
-           generateImage(data.word, meaning.context, selectedLevel)
-            .then((imageUrl) => {
-                setResult((prev) => {
-                  if (prev && prev.word === data.word) {
-                    const newMeanings = [...prev.meanings];
-                    if (newMeanings[index]) newMeanings[index] = { ...newMeanings[index], imageUrl: imageUrl || null };
-                    return { ...prev, meanings: newMeanings };
-                  }
-                  return prev;
-                });
-            })
-            .catch(() => {
-              setResult((prev) => {
-                if (prev && prev.word === data.word) {
-                  const newMeanings = [...prev.meanings];
-                  if (newMeanings[index]) newMeanings[index] = { ...newMeanings[index], imageUrl: null };
-                  return { ...prev, meanings: newMeanings };
-                }
-                return prev;
-              });
-            });
-        });
-      }
+      
     } catch (err: any) {
       setError(err.message || "오류가 발생했습니다.");
       setLoading(false);
@@ -97,41 +77,16 @@ const App: React.FC = () => {
     executeSearch(inputWord);
   };
 
-  const handleRefresh = () => { setInputWord(''); setResult(null); setError(null); };
+  const handleRefresh = () => { 
+    setInputWord(''); 
+    setResult(null); 
+    setError(null); 
+  };
 
   const handleRelatedWordClick = (word: string) => {
     setInputWord(word);
     executeSearch(word);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleRetryImage = (meaningIndex: number) => {
-    if (!result) return;
-    setResult((prev) => {
-      if (!prev) return null;
-      const newMeanings = [...prev.meanings];
-      newMeanings[meaningIndex] = { ...newMeanings[meaningIndex], imageUrl: undefined };
-      return { ...prev, meanings: newMeanings };
-    });
-
-    const meaning = result.meanings[meaningIndex];
-    generateImage(result.word, meaning.context, selectedLevel)
-      .then((imageUrl) => {
-          setResult((prev) => {
-            if (!prev || prev.word !== result.word) return prev;
-            const newMeanings = [...prev.meanings];
-            newMeanings[meaningIndex] = { ...newMeanings[meaningIndex], imageUrl: imageUrl || null };
-            return { ...prev, meanings: newMeanings };
-          });
-      })
-      .catch(() => {
-          setResult((prev) => {
-            if (!prev || prev.word !== result.word) return prev;
-            const newMeanings = [...prev.meanings];
-            newMeanings[meaningIndex] = { ...newMeanings[meaningIndex], imageUrl: null };
-            return { ...prev, meanings: newMeanings };
-          });
-      });
   };
 
   const filteredHistory = history.filter(item => item.word.toLowerCase().includes(historyFilter.toLowerCase()));
@@ -201,7 +156,7 @@ const App: React.FC = () => {
         {error && <div className="mb-6 p-4 bg-red-900/30 border border-red-800/50 text-red-400 rounded-xl text-center text-sm font-medium animate-pulse">{error}</div>}
 
         {result ? (
-          <WordCard data={result} level={selectedLevel} themeColor={themeColor} onRelatedWordClick={handleRelatedWordClick} onRetryImage={handleRetryImage} />
+          <WordCard data={result} level={selectedLevel} themeColor={themeColor} onRelatedWordClick={handleRelatedWordClick} />
         ) : (
           <div className="space-y-6">
             {!loading && history.length > 0 && (
@@ -214,7 +169,7 @@ const App: React.FC = () => {
                 <div className="grid gap-2">
                   {filteredHistory.length > 0 ? (
                     filteredHistory.map((item, idx) => (
-                        <div key={idx} onClick={() => { setInputWord(item.word); setSelectedLevel(item.level); window.scrollTo({ top: 0, behavior: 'smooth' }); executeSearch(item.word); }} className={`bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm flex items-center justify-between cursor-pointer hover:border-${themeColor}-500/50 hover:bg-slate-800/80 transition-all`}>
+                        <div key={idx} onClick={() => { setInputWord(item.word); setSelectedLevel(item.level); window.scrollTo({ top: 0, behavior: 'smooth' }); executeSearch(item.word, item.level); }} className={`bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-sm flex items-center justify-between cursor-pointer hover:border-${themeColor}-500/50 hover:bg-slate-800/80 transition-all`}>
                             <div><span className="font-bold text-slate-200 mr-2">{item.word}</span><span className="text-xs text-slate-400 bg-slate-700 px-2 py-0.5 rounded-full">{item.level}</span></div>
                             <ArrowRight size={16} className="text-slate-600" />
                         </div>

@@ -8,6 +8,7 @@ export type ThemeColor = 'indigo' | 'rose' | 'emerald' | 'amber' | 'violet' | 's
 
 export interface WordMeaning {
   context: string;
+  emoji: string;
   definition: string;
   englishTranslation: string;
   hanja?: string;
@@ -17,15 +18,20 @@ export interface WordMeaning {
   antonyms: string[];
   etymology?: string;
   wordStructure?: string;
-  imageUrl?: string | null;
+}
+
+export interface RelatedWord {
+  word: string;
+  emoji: string;
 }
 
 export interface WordData {
   word: string;
+  emoji: string;
   pronunciation: string;
   meanings: WordMeaning[];
   literacyImprovement: string;
-  relatedWords: string[];
+  relatedWords: RelatedWord[];
   tags: string[];
 }
 

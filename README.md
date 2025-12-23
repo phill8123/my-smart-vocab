@@ -1,20 +1,12 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 맞춤 단어 사전 (Smart Vocab)
 
-# Run and deploy your AI Studio app
+AI 기반 학생 맞춤형 단어 사전 웹 애플리케이션입니다.
 
-This contains everything you need to run your app locally.
+## 배포 방법
 
-View your app in AI Studio: https://ai.studio/apps/drive/1jB_6C9evYSQbagD7POAWkM8kxdV4S_Ht
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. GitHub에 이 코드를 업로드합니다.
+2. Vercel에 접속하여 'New Project'를 클릭하고 GitHub 저장소를 연결합니다.
+3. 배포 설정(Configure Project) 단계에서 **Environment Variables**에 다음을 추가합니다:
+   - Key: `API_KEY`
+   - Value: (본인의 Google Gemini API 키)
+4. 'Deploy'를 클릭하면 배포가 완료됩니다.
