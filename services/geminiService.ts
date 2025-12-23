@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema, Modality } from "@google/genai";
-import { StudentLevel, WordData, WordMeaning } from "../types";
+import { StudentLevel, WordData } from "../types";
 
 // Vercel 배포 시 TypeScript 빌드 오류 방지를 위한 전역 변수 선언
 declare const process: {
