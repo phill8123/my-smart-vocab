@@ -18,7 +18,7 @@ interface LazyImageProps {
   onRetry?: () => void;
 }
 
-const LazyImage: React.FC<LazyImageProps> = ({ src, alt, context, onRetry }) => {
+const LazyImage: React.FC<LazyImageProps> = ({ src, alt, onRetry }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const imgRef = useRef<HTMLDivElement>(null);
