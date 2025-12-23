@@ -29,11 +29,20 @@
         will-change: transform, opacity, filter;
       }
     </style>
-</script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="app"></div>
-   </script>
   </body>
 </html>
+37 <script>
+38   const app = document.getElementById("app");
+39 
+40   app.innerHTML = `
+41     <main class="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+42       <div class="bg-slate-900 p-6 rounded-2xl text-center space-y-3">
+43         <h1 class="text-xl font-bold">맞춤 단어 사전</h1>
+44         <p class="text-slate-300">✅ HTML 단독 구조 정상 작동</p>
+45       </div>
+46     </main>
+47   `;
+48 </script>
