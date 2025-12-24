@@ -9,7 +9,9 @@ declare const process: {
 };
 
 // Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// API 키가 없는 경우 빈 문자열로 초기화하여 초기 로딩 크래시 방지 (호출 시점 검증)
+const apiKey = process.env.API_KEY || "";
+const ai = new GoogleGenAI({ apiKey });
 
 const wordSchema: Schema = {
   type: Type.OBJECT,
@@ -63,6 +65,11 @@ const wordSchema: Schema = {
 };
 
 const fetchTextDefinition = async (word: string, level: StudentLevel, modelName: string): Promise<WordData> => {
+  // 1. API 키 검증 (Vercel 배포 오류 방지용)
+  if (!apiKey || apiKey === "undefined") {
+    throw new Error("API 키가 설정되지 않았습니다. Vercel 환경 변수(API_KEY)를 확인해주세요.");
+  }
+
   let levelInstructions = "";
 
   if (level === StudentLevel.ELEMENTARY) {
@@ -127,7 +134,7 @@ const fetchTextDefinition = async (word: string, level: StudentLevel, modelName:
   });
 
   const text = response.text;
-  if (!text) throw new Error("No text response from AI");
+  if (!text) throw new Error("AI 응답이 비어있습니다.");
   
   // Clean up potential Markdown formatting (e.g., ```json ... ```) which often breaks JSON parsing
   const cleanedText = text.replace(/```json|```/g, '').trim();
@@ -143,8 +150,17 @@ const fetchTextDefinition = async (word: string, level: StudentLevel, modelName:
 export const fetchWordDefinition = async (word: string, level: StudentLevel, model: string = 'gemini-3-flash-preview'): Promise<WordData> => {
   try {
     return await fetchTextDefinition(word, level, model);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini API Error:", error);
-    throw new Error("단어 정보를 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.");
+    
+    // 사용자에게 더 유용한 에러 메시지 전달
+    if (error.message.includes("API 키")) {
+        throw error; // API 키 관련 에러는 그대로 전달
+    }
+    if (error.message.includes("429")) {
+        throw new Error("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+    }
+    
+    throw new Error(error.message || "단어 정보를 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.");
   }
 };
