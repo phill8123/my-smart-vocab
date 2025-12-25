@@ -80,41 +80,46 @@ export const searchDepartments = async (query: string): Promise<SearchResponse> 
 
 // 2. 상세 정보 조회 (모달 오픈 시 호출)
 export const getDepartmentDetails = async (universityName: string, departmentName: string): Promise<UniversityDepartment> => {
-  // 상세 정보 조회 시에는 Schema 모드 대신 강력한 프롬프트 + 정규식 파싱 사용
-  // 이유: Google Search 도구와 strict responseSchema가 충돌하여 빈 응답이나 에러를 유발하는 경우가 있음
-  const prompt = `
-    Find detailed 3-year admission data (2025, 2024, 2023) for: **${universityName} ${departmentName}**
-    
-    **INSTRUCTIONS**:
-    1. **Search**: Use Google Search to find "2025학년도 ${universityName} ${departmentName} 수시 정시 등급", "2024 입결", "등록금", "취업률", "학과소개".
-    2. **MANDATORY**: You MUST try to find **2025학년도 입시결과** (Su-si/Jeong-si). 
-       - If exact 2025 data is not fully available, look for "2025 전형계획" or "모집요강" content.
-       - If truly unavailable, clearly state "정보 없음" or use 2024 data as an estimate marked "(예상)".
-    3. **Fields**:
-       - 'admissionData': Array of objects for 2023, 2024, 2025.
-       - 'description': Brief introduction (Korean).
-       - 'tuitionFee': Annual fee (e.g. "약 800만원").
-       - 'employmentRate': e.g. "75.2%".
-       - 'departmentRanking': Reputation summary.
+  // [강력한 에러 방지] 
+  // 1. responseMimeType: 'application/json'으로 JSON 강제
+  // 2. responseSchema는 제거하여 검색 결과 텍스트가 섞이는 문제 방지
+  // 3. try-catch에서 에러 발생 시 빈 객체 리턴하여 모달이 깨지는 것 방지
 
-    **OUTPUT FORMAT**:
-    - **EXTREMELY IMPORTANT**: Return **ONLY** a valid JSON object.
-    - Do not add "Here is the JSON" or Markdown code blocks if possible.
-    - Just the raw JSON string starting with '{' and ending with '}'.
+  const prompt = `
+    Role: Korean University Admissions Expert.
+    Task: Find detailed admission data for: **${universityName} ${departmentName}**.
     
-    JSON Template:
+    Instructions:
+    1. **Search**: Use Google Search to find "2025학년도 ${universityName} ${departmentName} 수시 정시 등급", "2024 입결", "등록금", "취업률", "학과소개".
+    2. **Admission Data**: Find data for 2025, 2024, 2023. If 2025 is not available, use 2024 data and mark clearly.
+    3. **Output format**: JSON only.
+    
+    JSON Structure:
     {
       "admissionData": [
-        { "year": "2023", "susiGyogwa": "...", "susiJonghap": "...", "jeongsi": "..." },
+        { "year": "2025", "susiGyogwa": "...", "susiJonghap": "...", "jeongsi": "..." },
         { "year": "2024", "susiGyogwa": "...", "susiJonghap": "...", "jeongsi": "..." },
-        { "year": "2025", "susiGyogwa": "...", "susiJonghap": "...", "jeongsi": "..." }
+        { "year": "2023", "susiGyogwa": "...", "susiJonghap": "...", "jeongsi": "..." }
       ],
-      "description": "...",
-      "tuitionFee": "...",
-      "employmentRate": "...",
-      "departmentRanking": "..."
+      "description": "Short department introduction in Korean.",
+      "tuitionFee": "Yearly tuition (e.g. 780만원)",
+      "employmentRate": "Employment rate (e.g. 75%)",
+      "departmentRanking": "Department reputation/ranking summary"
     }
   `;
+
+  const fallbackData: UniversityDepartment = {
+    id: "", // caller will merge
+    universityName,
+    departmentName,
+    location: "", // caller will merge
+    field: "", // caller will merge
+    admissionData: [],
+    description: "상세 정보를 불러오는 데 실패했습니다. 아래 버튼을 통해 '대학어디가'나 '네이버'에서 직접 확인해보세요.",
+    tuitionFee: "-",
+    employmentRate: "-",
+    departmentRanking: "-"
+  };
 
   try {
     const response = await ai.models.generateContent({
@@ -122,27 +127,35 @@ export const getDepartmentDetails = async (universityName: string, departmentNam
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
-        // responseSchema 제거: 검색 도구와 함께 사용 시 안정성 확보
+        responseMimeType: "application/json", // JSON 모드 강제
       }
     });
 
-    const text = response.text || "";
+    let jsonStr = response.text || "{}";
     
-    // JSON 추출을 위한 강력한 정규식 (Markdown 코드블록 무시하고 첫 번째 JSON 객체 탐색)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    
-    if (!jsonMatch) {
-      console.error("Gemini Raw Response:", text);
-      throw new Error("데이터 형식이 올바르지 않습니다 (JSON 파싱 실패).");
+    // 마크다운 코드 블록 제거 (혹시 포함될 경우)
+    if (jsonStr.includes("```")) {
+       jsonStr = jsonStr.replace(/^```\w*\s*/, "").replace(/\s*```$/, "").trim();
     }
-    
-    const jsonStr = jsonMatch[0];
+
     const parsed = JSON.parse(jsonStr);
 
-    return parsed as UniversityDepartment;
+    return {
+      id: "",
+      universityName,
+      departmentName,
+      location: "",
+      field: "",
+      admissionData: Array.isArray(parsed.admissionData) ? parsed.admissionData : [],
+      description: parsed.description || "정보를 불러올 수 없습니다.",
+      tuitionFee: parsed.tuitionFee || "-",
+      employmentRate: parsed.employmentRate || "-",
+      departmentRanking: parsed.departmentRanking || "-"
+    };
 
   } catch (error) {
-    console.error("Detail Error:", error);
-    throw new Error("상세 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+    console.error("Detail Error (Handled):", error);
+    // 에러를 던지지 않고 기본값(fallbackData)을 반환하여 모달이 닫히거나 에러 화면이 뜨는 것을 방지
+    return fallbackData;
   }
 };
