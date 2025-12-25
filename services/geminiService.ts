@@ -1,166 +1,148 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { StudentLevel, WordData } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
+import { SearchResponse, UniversityDepartment } from "../types";
 
-// Vercel 배포 시 TypeScript 빌드 오류 방지를 위한 전역 변수 선언
-declare const process: {
-  env: {
-    API_KEY: string;
-  }
-};
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const MODEL_NAME = "gemini-3-flash-preview";
 
-// Initialize Gemini Client
-// API 키가 없는 경우 빈 문자열로 초기화하여 초기 로딩 크래시 방지 (호출 시점 검증)
-const apiKey = process.env.API_KEY || "";
-const ai = new GoogleGenAI({ apiKey });
-
-const wordSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    word: { type: Type.STRING, description: "The word being defined" },
-    emoji: { type: Type.STRING, description: "A single representative emoji for the word. If it's a homonym, choose the most common meaning's emoji." },
-    pronunciation: { type: Type.STRING, description: "Standard Korean pronunciation (Hangul sound) and Romanization. e.g. '사:과 / sa-gwa'" },
-    meanings: {
-      type: Type.ARRAY,
-      description: "A list of distinct meanings. If the word is a homonym (same spelling, different origin) or polysemous (same origin, multiple meanings), list them separately.",
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          context: { type: Type.STRING, description: "A short label distinguishing this meaning (e.g., 'Fruit', 'Transportation')." },
-          emoji: { type: Type.STRING, description: "A specific emoji representing this particular meaning (e.g. 🍐 for pear, ⛵ for boat)." },
-          definition: { type: Type.STRING, description: "Definition tailored to the student level." },
-          englishTranslation: { type: Type.STRING, description: "English translation for this specific meaning." },
-          hanja: { type: Type.STRING, description: "Hanja for this specific meaning (if applicable)." },
-          exampleSentence: { type: Type.STRING, description: "Example sentence using this specific meaning." },
-          synonyms: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Synonyms." },
-          antonyms: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Antonyms." },
-          etymology: { type: Type.STRING, description: "Etymology specific to this meaning/Hanja." },
-          wordStructure: { type: Type.STRING, description: "Morphological analysis if applicable." },
-        },
-        required: ["context", "emoji", "definition", "englishTranslation", "exampleSentence", "etymology"]
-      }
-    },
-    literacyImprovement: {
-      type: Type.STRING,
-      description: "A short text passage (2-5 sentences) improving literacy."
-    },
-    relatedWords: {
-      type: Type.ARRAY, 
-      items: { 
-        type: Type.OBJECT,
-        properties: {
-            word: { type: Type.STRING, description: "The related word." },
-            emoji: { type: Type.STRING, description: "A representative emoji for this word." }
-        },
-        required: ["word", "emoji"]
-      }, 
-      description: "List of 3-4 related words with representative emojis."
-    },
-    tags: {
-      type: Type.ARRAY, 
-      items: { type: Type.STRING }, 
-      description: "Keywords describing the word."
-    }
-  },
-  required: ["word", "emoji", "pronunciation", "meanings", "literacyImprovement", "relatedWords"],
-};
-
-const fetchTextDefinition = async (word: string, level: StudentLevel, modelName: string): Promise<WordData> => {
-  // 1. API 키 검증 (Vercel 배포 오류 방지용)
-  if (!apiKey || apiKey === "undefined") {
-    throw new Error("API 키가 설정되지 않았습니다. Vercel 환경 변수(API_KEY)를 확인해주세요.");
-  }
-
-  let levelInstructions = "";
-
-  if (level === StudentLevel.ELEMENTARY) {
-    levelInstructions = `
-      TARGET AUDIENCE: 7-10 year old Korean children.
-      ROLE: A kind, cheerful kindergarten teacher.
-      TONE: Friendly, warm, enthusiastic. Use emojis.
-      DEFINITION RULES: Use simple native Korean words. Avoid difficult Hanja. Ending: "~해요". Explain like you are telling a story.
-      ETYMOLOGY RULES: Explain as "단어의 비밀" (Secret of the word) in a fun way.
-    `;
-  } else if (level === StudentLevel.MIDDLE) {
-    levelInstructions = `
-      TARGET AUDIENCE: 14-16 year old Korean teenagers.
-      ROLE: A cool and knowledgeable school subject teacher.
-      TONE: Informative, standard, encouraging but not childish.
-      DEFINITION RULES: Standard textbook definition. Ending: "~이다" or "~입니다". Connect to school subjects if possible.
-      ETYMOLOGY RULES: "글자 풀이". Break down the word structure logically.
-    `;
-  } else {
-    levelInstructions = `
-      TARGET AUDIENCE: 17-19 year old Korean students (High school/Pre-college).
-      ROLE: A university professor or academic mentor.
-      TONE: Formal, academic, precise, intellectual.
-      DEFINITION RULES: Comprehensive, academic definition suitable for essays or exams. Ending: "~다". Include nuance and usage context.
-      ETYMOLOGY RULES: Strict Hanja breakdown and academic origin.
-    `;
-  }
-
+// 1. 가벼운 검색 (기본 정보만 조회)
+export const searchDepartments = async (query: string): Promise<SearchResponse> => {
   const prompt = `
-    Analyze the Korean word: "${word}".
-    ${levelInstructions}
+    당신은 대한민국 '대학어디가' 입시 전문가입니다.
+    사용자 검색어: "${query}"
     
-    *** CRITICAL INSTRUCTION: STRICT SPELLING ENFORCEMENT ***
-    1. EXACT MATCH ONLY: 
-       - You must ONLY provide definitions for words that are spelled EXACTLY as "${word}" (Hangul).
-       - ABSOLUTELY DO NOT include words that sound the same but have different spelling (Homophones).
-       - Example FAILURE: User searches "경의" (Respect), AI returns "경이" (Wonder). -> THIS IS FORBIDDEN.
-       - Example SUCCESS: User searches "배", AI returns "배 (Pear)", "배 (Boat)", "배 (Stomach)". -> This is allowed (Homonyms with same spelling).
-       - Example SUCCESS: User searches "눈", AI returns "눈 (Eye)", "눈 (Snow)". -> This is allowed.
-    
-    2. HOMONYM vs POLYSEME:
-       - If the exact spelling "${word}" corresponds to multiple different Hanja origins (Homonyms), list them as separate meanings.
-       - If the exact spelling "${word}" has one origin but multiple meanings (Polysemes), list them as separate meanings.
-       - Ensure 'hanja' field is accurate for each meaning to allow distinguishing homonyms.
+    **지시사항**:
+    1. 검색어와 관련된 대학/학과 리스트를 반환하세요.
+    2. **속도 최적화를 위해 대학명, 학과명, 계열, 위치 정보만 반환하세요.**
+    3. 입시 결과, 설명, 등록금 등 세부 정보는 절대 생성하지 마세요.
+    4. **[CRITICAL] 순위 선정 기준**: '정시(수능) 입시결과(백분위)'와 '대학 인지도/평판(Reputation)'을 종합적으로 고려하여, 입학 성적이 높고 명문대일수록 리스트의 **상단**에 위치시켜야 합니다.
+    5. **상위 20개 내외의 가장 관련성 높은 결과만 반환하세요.**
+    6. 'estimatedTotalCount'는 전체 개설 대학 수(추정)를 정수로 입력하세요.
 
-    REQUIREMENTS:
-    - Context: Provide a short context label (e.g. 'Body Part', 'Nature').
-    - Emoji: Provide a specific emoji for EACH meaning.
-    - Hanja: Provide specific Hanja for each meaning.
-    - Output: JSON format.
+    **응답 형식**: JSON 포맷만 반환하세요.
   `;
 
-  const response = await ai.models.generateContent({
-    model: modelName,
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: wordSchema,
-      systemInstruction: "You are a strict Korean vocabulary AI. You NEVER confuse words with different spellings, even if they sound identical. You strictly define ONLY the word provided in the prompt.",
-      thinkingConfig: { thinkingBudget: 0 }
-    }
-  });
-
-  const text = response.text;
-  if (!text) throw new Error("AI 응답이 비어있습니다.");
-  
-  // Clean up potential Markdown formatting (e.g., ```json ... ```) which often breaks JSON parsing
-  const cleanedText = text.replace(/```json|```/g, '').trim();
-  
   try {
-    return JSON.parse(cleanedText) as WordData;
-  } catch (e) {
-    console.error("JSON Parsing Error:", e);
-    throw new Error("데이터를 처리하는 중 문제가 발생했습니다.");
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        thinkingConfig: { thinkingBudget: 2048 }, 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            estimatedTotalCount: { type: Type.INTEGER },
+            departments: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  universityName: { type: Type.STRING },
+                  departmentName: { type: Type.STRING },
+                  location: { type: Type.STRING },
+                  field: { type: Type.STRING }
+                },
+                required: ["universityName", "departmentName", "location", "field"]
+              }
+            }
+          },
+          required: ["estimatedTotalCount", "departments"]
+        }
+      }
+    });
+
+    let jsonStr = response.text;
+    if (!jsonStr) throw new Error("API returned empty response");
+    
+    jsonStr = jsonStr.replace(/^```json\s*/, "").replace(/```$/, "").trim();
+
+    const parsed = JSON.parse(jsonStr) as { estimatedTotalCount: number, departments: Omit<UniversityDepartment, 'id' | 'admissionData' | 'description' | 'tuitionFee' | 'employmentRate' | 'departmentRanking'>[] };
+    
+    const fullDepartments: UniversityDepartment[] = parsed.departments.map((dept, index) => ({
+      ...dept,
+      id: `${dept.universityName}-${dept.departmentName}-${index}`,
+      admissionData: [],
+      description: "",
+      tuitionFee: "",
+      employmentRate: "",
+      departmentRanking: ""
+    }));
+
+    return {
+      estimatedTotalCount: parsed.estimatedTotalCount,
+      departments: fullDepartments
+    };
+  } catch (error) {
+    console.error("Search Error:", error);
+    throw error;
   }
 };
 
-export const fetchWordDefinition = async (word: string, level: StudentLevel, model: string = 'gemini-3-flash-preview'): Promise<WordData> => {
+// 2. 상세 정보 조회 (모달 오픈 시 호출)
+export const getDepartmentDetails = async (universityName: string, departmentName: string): Promise<UniversityDepartment> => {
+  // 상세 정보 조회 시에는 Schema 모드 대신 강력한 프롬프트 + 정규식 파싱 사용
+  // 이유: Google Search 도구와 strict responseSchema가 충돌하여 빈 응답이나 에러를 유발하는 경우가 있음
+  const prompt = `
+    Find detailed 3-year admission data (2025, 2024, 2023) for: **${universityName} ${departmentName}**
+    
+    **INSTRUCTIONS**:
+    1. **Search**: Use Google Search to find "2025학년도 ${universityName} ${departmentName} 수시 정시 등급", "2024 입결", "등록금", "취업률", "학과소개".
+    2. **MANDATORY**: You MUST try to find **2025학년도 입시결과** (Su-si/Jeong-si). 
+       - If exact 2025 data is not fully available, look for "2025 전형계획" or "모집요강" content.
+       - If truly unavailable, clearly state "정보 없음" or use 2024 data as an estimate marked "(예상)".
+    3. **Fields**:
+       - 'admissionData': Array of objects for 2023, 2024, 2025.
+       - 'description': Brief introduction (Korean).
+       - 'tuitionFee': Annual fee (e.g. "약 800만원").
+       - 'employmentRate': e.g. "75.2%".
+       - 'departmentRanking': Reputation summary.
+
+    **OUTPUT FORMAT**:
+    - **EXTREMELY IMPORTANT**: Return **ONLY** a valid JSON object.
+    - Do not add "Here is the JSON" or Markdown code blocks if possible.
+    - Just the raw JSON string starting with '{' and ending with '}'.
+    
+    JSON Template:
+    {
+      "admissionData": [
+        { "year": "2023", "susiGyogwa": "...", "susiJonghap": "...", "jeongsi": "..." },
+        { "year": "2024", "susiGyogwa": "...", "susiJonghap": "...", "jeongsi": "..." },
+        { "year": "2025", "susiGyogwa": "...", "susiJonghap": "...", "jeongsi": "..." }
+      ],
+      "description": "...",
+      "tuitionFee": "...",
+      "employmentRate": "...",
+      "departmentRanking": "..."
+    }
+  `;
+
   try {
-    return await fetchTextDefinition(word, level, model);
-  } catch (error: any) {
-    console.error("Gemini API Error:", error);
+    const response = await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+        // responseSchema 제거: 검색 도구와 함께 사용 시 안정성 확보
+      }
+    });
+
+    const text = response.text || "";
     
-    // 사용자에게 더 유용한 에러 메시지 전달
-    if (error.message.includes("API 키")) {
-        throw error; // API 키 관련 에러는 그대로 전달
-    }
-    if (error.message.includes("429")) {
-        throw new Error("요청이 너무 많습니다. 잠시 후 다시 시도해주세요.");
+    // JSON 추출을 위한 강력한 정규식 (Markdown 코드블록 무시하고 첫 번째 JSON 객체 탐색)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    
+    if (!jsonMatch) {
+      console.error("Gemini Raw Response:", text);
+      throw new Error("데이터 형식이 올바르지 않습니다 (JSON 파싱 실패).");
     }
     
-    throw new Error(error.message || "단어 정보를 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.");
+    const jsonStr = jsonMatch[0];
+    const parsed = JSON.parse(jsonStr);
+
+    return parsed as UniversityDepartment;
+
+  } catch (error) {
+    console.error("Detail Error:", error);
+    throw new Error("상세 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
   }
 };
