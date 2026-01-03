@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Sparkles, Lightbulb, Search, PenTool, History, Layers, ArrowRightLeft, Copy, Split } from 'lucide-react';
+import { BookOpen, Sparkles, Lightbulb, Search, PenTool, History, Layers, ArrowRightLeft, Copy, Split, MessageCircle } from 'lucide-react';
 import { WordData, StudentLevel, ThemeColor } from '../types';
 
 interface WordCardProps {
@@ -15,14 +15,14 @@ export const WordCard: React.FC<WordCardProps> = ({ data, level, themeColor, onR
   // Logic to distinguish Homonyms vs Polysemes
   const hasMultipleMeanings = data.meanings.length > 1;
   
-  // Treat undefined/empty hanja as a distinct 'Native' origin.
-  // This ensures words like "말" (Horse-Hanja vs Speech-Native) are correctly identified as Homonyms.
-  const distinctOrigins = new Set(data.meanings.map(m => m.hanja ? m.hanja.trim() : 'NATIVE_ORIGIN'));
+  // Update logic: For English words, 'hanja' might be empty. Use etymology or just index as fallback to detect distinction.
+  // We use Hanja (for Korean) OR Etymology (for English) to detect if they are separate words (Homonyms).
+  const distinctOrigins = new Set(data.meanings.map(m => (m.hanja || m.etymology || 'NATIVE_ORIGIN').trim()));
   
-  // If there are multiple meanings and distinct origins (different Hanja or Hanja vs Native), it's a Homonym.
+  // If there are multiple meanings and distinct origins, it's likely a Homonym (different words).
   const isHomonym = hasMultipleMeanings && distinctOrigins.size > 1;
   
-  // If there are multiple meanings but they share the same origin (same Hanja or all Native), it's Polysemous.
+  // If there are multiple meanings but they share the same origin, it's Polysemous (one word, multiple meanings).
   const isPolysemous = hasMultipleMeanings && !isHomonym;
 
   return (
@@ -108,6 +108,24 @@ export const WordCard: React.FC<WordCardProps> = ({ data, level, themeColor, onR
       })}
 
       <div className="w-full bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 p-6 sm:p-8 space-y-6">
+        
+        {/* Idioms Section Added Here */}
+        {data.idioms && data.idioms.length > 0 && (
+          <div className="mb-6">
+             <div className="flex items-center gap-2 mb-3 text-orange-600 font-bold text-sm uppercase tracking-wider">
+               <MessageCircle size={18} /> 관용구 및 속담
+             </div>
+             <div className="grid gap-3 sm:grid-cols-2">
+               {data.idioms.map((item, i) => (
+                 <div key={i} className="bg-orange-50/50 p-4 rounded-xl border border-orange-100/60 shadow-sm hover:border-orange-200 transition-colors">
+                   <div className="font-bold text-slate-800 mb-1">{item.expression}</div>
+                   <div className="text-sm text-slate-600 leading-relaxed">{item.meaning}</div>
+                 </div>
+               ))}
+             </div>
+          </div>
+        )}
+
         {data.relatedWords?.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-3 text-violet-600 font-bold text-sm uppercase tracking-wider"><Lightbulb size={18} /> 함께 배우면 좋은 단어</div>
