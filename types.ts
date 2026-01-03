@@ -2,6 +2,7 @@ export enum StudentLevel {
   ELEMENTARY = '초등학생',
   MIDDLE = '중학생',
   HIGH = '고등학생',
+  ACADEMIC = '학술(전문가)',
 }
 
 export type ThemeColor = 'indigo' | 'rose' | 'emerald' | 'amber' | 'violet' | 'sky';
@@ -25,12 +26,18 @@ export interface RelatedWord {
   emoji: string;
 }
 
+export interface Idiom {
+  expression: string;
+  meaning: string;
+}
+
 export interface WordData {
   word: string;
   emoji: string;
   pronunciation: string;
   meanings: WordMeaning[];
   literacyImprovement: string;
+  idioms: Idiom[];
   relatedWords: RelatedWord[];
   tags: string[];
 }
