@@ -139,16 +139,17 @@ const App: React.FC = () => {
       <main className="max-w-md mx-auto px-4 py-6">
         <div className="mb-6">
           <p className="text-sm font-semibold text-slate-400 mb-3 ml-1">학년을 선택해주세요</p>
-          <div className="flex justify-between gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-between">
             <LevelBadge level={StudentLevel.ELEMENTARY} selected={selectedLevel === StudentLevel.ELEMENTARY} onClick={() => setSelectedLevel(StudentLevel.ELEMENTARY)} />
             <LevelBadge level={StudentLevel.MIDDLE} selected={selectedLevel === StudentLevel.MIDDLE} onClick={() => setSelectedLevel(StudentLevel.MIDDLE)} />
             <LevelBadge level={StudentLevel.HIGH} selected={selectedLevel === StudentLevel.HIGH} onClick={() => setSelectedLevel(StudentLevel.HIGH)} />
+            <LevelBadge level={StudentLevel.ACADEMIC} selected={selectedLevel === StudentLevel.ACADEMIC} onClick={() => setSelectedLevel(StudentLevel.ACADEMIC)} />
           </div>
         </div>
 
         <form onSubmit={handleSearch} className="mb-8 relative group">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><Search className={`text-slate-500 group-focus-within:text-${themeColor}-500 transition-colors`} size={20} /></div>
-          <input type="text" value={inputWord} onChange={(e) => setInputWord(e.target.value)} placeholder="단어를 입력하세요 (예: 배, 눈, 사과)" className={`w-full pl-11 ${inputWord ? 'pr-28' : 'pr-14'} py-4 bg-slate-800 border-2 border-slate-700 rounded-2xl text-lg text-white placeholder-slate-500 focus:outline-none focus:border-${themeColor}-500 focus:ring-4 focus:ring-${themeColor}-500/20 transition-all shadow-sm`} />
+          <input type="text" value={inputWord} onChange={(e) => setInputWord(e.target.value)} placeholder="단어를 입력하세요 (예: 배, 사과, Apple, Run)" className={`w-full pl-11 ${inputWord ? 'pr-28' : 'pr-14'} py-4 bg-slate-800 border-2 border-slate-700 rounded-2xl text-lg text-white placeholder-slate-500 focus:outline-none focus:border-${themeColor}-500 focus:ring-4 focus:ring-${themeColor}-500/20 transition-all shadow-sm`} />
           {inputWord && <button type="button" onClick={handleRefresh} className="absolute right-14 top-2 bottom-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700 p-2 rounded-xl transition-all flex items-center justify-center aspect-square" title="초기화"><RotateCcw size={20} /></button>}
           <button type="submit" disabled={loading || !inputWord.trim()} className={`absolute right-2 top-2 bottom-2 bg-${themeColor}-600 hover:bg-${themeColor}-700 disabled:bg-slate-700 disabled:text-slate-500 text-white p-2 rounded-xl transition-colors flex items-center justify-center aspect-square shadow-sm`}>{loading ? <Loader2 className="animate-spin" size={20} /> : <ArrowRight size={20} />}</button>
         </form>
