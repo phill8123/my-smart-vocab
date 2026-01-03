@@ -28,7 +28,7 @@ const wordSchema: Schema = {
           context: { type: Type.STRING, description: "Context label (e.g., 'Fruit', 'Law')." },
           emoji: { type: Type.STRING, description: "Specific emoji." },
           definition: { type: Type.STRING, description: "Definition in KOREAN." },
-          englishTranslation: { type: Type.STRING, description: "If input is Korean: English translation. If input is English: The English word itself or a synonym." },
+          englishTranslation: { type: Type.STRING, description: "CRITICAL: The direct translation word. If input is Korean -> English word (e.g. 'Apple'). If input is English -> KOREAN word (e.g. '사과' or '귀')." },
           hanja: { type: Type.STRING, description: "If Korean: The Hanja (e.g. 謝過). If English: Leave empty or provide Latin/Greek root if Academic level." },
           exampleSentence: { type: Type.STRING, description: "Example sentence (Korean for Korean words, English with Korean translation for English words)." },
           synonyms: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Synonyms." },
@@ -122,9 +122,10 @@ const fetchTextDefinition = async (word: string, level: StudentLevel, modelName:
     1. **LANGUAGE DETECTION**:
        - If "${word}" is **Korean**: Act as a Korean-Korean Dictionary (国語辞典).
          - 'hanja' field is required.
-         - 'englishTranslation' provides the English equivalent.
+         - 'englishTranslation' MUST be the English translation.
        - If "${word}" is **English**: Act as an English-Korean Dictionary (英韓辞典).
          - 'definition' MUST be in KOREAN.
+         - 'englishTranslation' MUST be the direct KOREAN equivalent word (e.g. for input 'ear', return '귀').
          - 'hanja' field should be empty (or Latin root if Academic).
          - 'pronunciation' should provide IPA and Korean phonetic reading.
          - 'exampleSentence' should be in English, followed by Korean translation.
