@@ -22,6 +22,10 @@ export const LevelBadge: React.FC<LevelBadgeProps> = ({ level, selected = false,
         return selected 
           ? 'bg-purple-500 text-white border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.4)]' 
           : 'bg-slate-800 text-purple-400 border-slate-700 hover:bg-slate-700 hover:border-purple-500/50';
+      case StudentLevel.ACADEMIC:
+        return selected 
+          ? 'bg-cyan-600 text-white border-cyan-500 shadow-[0_0_15px_rgba(8,145,178,0.4)]' 
+          : 'bg-slate-800 text-cyan-400 border-slate-700 hover:bg-slate-700 hover:border-cyan-500/50';
       default:
         return 'bg-slate-800 text-slate-400 border-slate-700';
     }
